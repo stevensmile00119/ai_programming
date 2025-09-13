@@ -1,204 +1,355 @@
-# ai_programming
-使用 AI 進行 coding 
+# Taiwan Stock Exchange (TWSE) RESTful API
 
-## Taiwan Stock Exchange (TWSE) RESTful API
+A comprehensive Spring Boot RESTful API for querying Taiwan Stock Exchange (TWSE) current day stock data using the official TWSE OpenAPI.
 
-這是一個 Spring Boot RESTful API，用於查詢台灣上市股票的每日收盤資訊。
+## Features
 
-### 功能特色
+- **Current Day Stock Data**: Access real-time data for all listed Taiwan stocks
+- **ETF Support**: Includes Exchange Traded Funds data (e.g., 0050, 0056)
+- **Comprehensive Data**: Opening, highest, lowest, closing prices, trade volume, value, and transaction count
+- **ROC Date Support**: Automatically converts Republic of China (ROC) calendar dates to standard format
+- **RESTful Design**: Clean and intuitive API endpoints following REST principles
+- **Comprehensive Error Handling**: Detailed error responses with appropriate HTTP status codes
 
-- 查詢指定股票代碼在指定日期區間內的日線資料
-- 支援開盤價、最高價、最低價、收盤價、成交量等資訊
-- 從台灣證券交易所 OpenAPI 取得即時資料
-- 完整的輸入驗證和錯誤處理
-- RESTful API 設計
+## API Endpoints
 
-### 技術架構
+### 1. Get All Current Day Stock Data
 
-- **Framework**: Spring Boot 3.4.1
-- **Java Version**: Java 17
-- **Build Tool**: Maven
-- **外部資料源**: 台灣證券交易所 OpenAPI (https://openapi.twse.com.tw/)
-
-### API 端點
-
-#### 1. 查詢股票資料
-```
-GET /api/twse/stock/{stockNo}?startDate={YYYYMMDD}&endDate={YYYYMMDD}
+```http
+GET /api/twse/stocks
 ```
 
-**路徑參數:**
-- `stockNo`: 股票代碼 (4位數字，例如: 2330)
+Returns comprehensive data for all stocks traded on the current trading day.
 
-**查詢參數:**
-- `startDate`: 起始日期 (格式: YYYYMMDD，例如: 20241101)
-- `endDate`: 結束日期 (格式: YYYYMMDD，例如: 20241130)
+**Response Example:**
+```json
+{
+  "date": "2025-09-12",
+  "totalStocks": 1000,
+  "stocks": [
+    {
+      "stockCode": "0050",
+      "stockName": "元大台灣50",
+      "date": "2025-09-12",
+      "openingPrice": 55.75,
+      "highestPrice": 56.00,
+      "lowestPrice": 55.70,
+      "closingPrice": 56.00,
+      "change": "0.5500",
+      "tradeVolume": 59101728,
+      "tradeValue": 3303299908,
+      "transaction": 36831
+    }
+  ],
+  "message": "All stock data retrieved successfully"
+}
+```
 
-**回應範例 (成功):**
+### 2. Get Specific Stock Data
+
+```http
+GET /api/twse/stocks/{stockCode}
+```
+
+Returns current day data for a specific stock by stock code.
+
+**Path Parameters:**
+- `stockCode` (string): 4-digit Taiwan stock code (e.g., "2330", "0050")
+
+**Example Request:**
+```bash
+curl "http://localhost:8080/api/twse/stocks/2330"
+```
+
+**Response Example:**
 ```json
 {
   "stockCode": "2330",
   "stockName": "台積電",
-  "queryPeriod": "20241101 to 20241130",
-  "data": [
-    {
-      "date": "2024-11-01",
-      "tradeVolume": 25486598,
-      "tradeValue": 28751836910,
-      "openingPrice": 1135.00,
-      "highestPrice": 1145.00,
-      "lowestPrice": 1125.00,
-      "closingPrice": 1140.00,
-      "change": "+5.00",
-      "transaction": 15234
-    }
-  ],
-  "message": "Data retrieved successfully"
+  "date": "2025-09-12",
+  "openingPrice": 1135.00,
+  "highestPrice": 1145.00,
+  "lowestPrice": 1125.00,
+  "closingPrice": 1140.00,
+  "change": "+5.00",
+  "tradeVolume": 25486598,
+  "tradeValue": 29101234567,
+  "transaction": 8456
 }
 ```
 
-**回應範例 (錯誤):**
-```json
-{
-  "error": "Invalid Input",
-  "message": "Stock code must be 4 digits",
-  "timestamp": "2024-11-01T10:30:00",
-  "status": 400
-}
-```
+### 3. Health Check
 
-#### 2. 健康檢查
-```
+```http
 GET /api/twse/health
 ```
 
-**回應:**
+Simple health check endpoint to verify API service status.
+
+**Response:**
 ```
 TWSE API service is running
 ```
 
-### 常見股票代碼
+## Common Taiwan Stock Codes
 
-| 股票代碼 | 公司名稱 |
-|---------|---------|
-| 2330    | 台積電   |
-| 2317    | 鴻海     |
-| 2454    | 聯發科   |
-| 2382    | 廣達     |
-| 3008    | 大立光   |
-| 2303    | 聯電     |
-| 1301    | 台塑     |
-| 2881    | 富邦金   |
-| 2002    | 中鋼     |
-| 1216    | 統一     |
+### ETFs (Exchange Traded Funds)
+- **0050** - 元大台灣50 (Yuanta Taiwan 50)
+- **0056** - 元大高股息 (Yuanta Taiwan High Dividend Yield)
 
-### 錯誤處理
+### Technology Stocks
+- **2330** - 台積電 (TSMC - Taiwan Semiconductor)
+- **2454** - 聯發科 (MediaTek)
+- **2317** - 鴻海 (Foxconn)
+- **2382** - 廣達 (Quanta Computer)
+- **3008** - 大立光 (Largan Precision)
+- **2303** - 聯電 (United Microelectronics)
 
-API 提供完整的錯誤處理機制：
+### Financial Stocks
+- **2881** - 富邦金 (Fubon Financial)
+- **2882** - 國泰金 (Cathay Financial)
+- **2883** - 開發金 (China Development Financial)
 
-- **400 Bad Request**: 輸入參數錯誤
-  - 股票代碼必須為4位數字
-  - 日期格式必須為 YYYYMMDD
-  - 起始日期必須早於結束日期
-  
-- **503 Service Unavailable**: 外部 API 服務不可用
-  - TWSE API 連線失敗
-  - API 回傳錯誤狀態
-  
-- **500 Internal Server Error**: 內部伺服器錯誤
+### Traditional Industries
+- **1301** - 台塑 (Formosa Plastics)
+- **2002** - 中鋼 (China Steel)
+- **1216** - 統一 (Uni-President Enterprises)
 
-### 建置與執行
+## Response Fields
 
-#### 前置需求
-- Java 17 或以上版本
-- Maven 3.6 或以上版本
+| Field | Type | Description |
+|-------|------|-------------|
+| `stockCode` | String | 4-digit Taiwan stock code |
+| `stockName` | String | Stock name in Traditional Chinese |
+| `date` | String | Trading date (YYYY-MM-DD format) |
+| `openingPrice` | Number | Opening price in TWD |
+| `highestPrice` | Number | Highest price of the day in TWD |
+| `lowestPrice` | Number | Lowest price of the day in TWD |
+| `closingPrice` | Number | Closing price in TWD |
+| `change` | String | Price change from previous trading day |
+| `tradeVolume` | Number | Total trading volume (shares) |
+| `tradeValue` | Number | Total trading value in TWD |
+| `transaction` | Number | Number of transactions |
 
-#### 編譯專案
+## Error Handling
+
+The API provides comprehensive error handling with appropriate HTTP status codes:
+
+### 400 Bad Request
+Invalid input parameters (e.g., incorrect stock code format).
+
+```json
+{
+  "error": "Invalid Input",
+  "message": "Stock code must be 4 digits",
+  "timestamp": "2025-09-12T10:30:00",
+  "status": 400
+}
+```
+
+### 404 Not Found
+Stock code not found in current day trading data.
+
+```json
+{
+  "error": "Stock Not Found",
+  "message": "No data found for stock code: 9999",
+  "timestamp": "2025-09-12T10:30:00",
+  "status": 404
+}
+```
+
+### 503 Service Unavailable
+External TWSE API is temporarily unavailable.
+
+```json
+{
+  "error": "External API Error",
+  "message": "Failed to fetch stock data from TWSE API: Connection timeout",
+  "timestamp": "2025-09-12T10:30:00",
+  "status": 503
+}
+```
+
+### 500 Internal Server Error
+Unexpected server error.
+
+```json
+{
+  "error": "Internal Server Error",
+  "message": "An unexpected error occurred",
+  "timestamp": "2025-09-12T10:30:00",
+  "status": 500
+}
+```
+
+## Usage Examples
+
+### cURL Examples
+
+```bash
+# Get all current day stock data
+curl -X GET "http://localhost:8080/api/twse/stocks"
+
+# Get TSMC (2330) current day data
+curl -X GET "http://localhost:8080/api/twse/stocks/2330"
+
+# Get ETF 0050 current day data
+curl -X GET "http://localhost:8080/api/twse/stocks/0050"
+
+# Pretty print JSON response
+curl -X GET "http://localhost:8080/api/twse/stocks/2330" | python -m json.tool
+```
+
+### JavaScript Example
+
+```javascript
+// Fetch TSMC stock data
+fetch('http://localhost:8080/api/twse/stocks/2330')
+  .then(response => response.json())
+  .then(data => {
+    console.log(`${data.stockName} (${data.stockCode})`);
+    console.log(`Closing Price: ${data.closingPrice} TWD`);
+    console.log(`Change: ${data.change}`);
+    console.log(`Volume: ${data.tradeVolume.toLocaleString()}`);
+  })
+  .catch(error => console.error('Error:', error));
+
+// Fetch all stocks data
+fetch('http://localhost:8080/api/twse/stocks')
+  .then(response => response.json())
+  .then(data => {
+    console.log(`Trading Date: ${data.date}`);
+    console.log(`Total Stocks: ${data.totalStocks}`);
+    data.stocks.forEach(stock => {
+      console.log(`${stock.stockName}: ${stock.closingPrice} TWD`);
+    });
+  });
+```
+
+### Python Example
+
+```python
+import requests
+import json
+
+# Get specific stock data
+def get_stock_data(stock_code):
+    url = f"http://localhost:8080/api/twse/stocks/{stock_code}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"{data['stockName']} ({data['stockCode']})")
+            print(f"Closing Price: {data['closingPrice']} TWD")
+            print(f"Change: {data['change']}")
+            print(f"Volume: {data['tradeVolume']:,}")
+        else:
+            print(f"Error: {response.status_code}")
+            print(response.json())
+    except Exception as e:
+        print(f"Request failed: {e}")
+
+# Get all stocks data
+def get_all_stocks():
+    url = "http://localhost:8080/api/twse/stocks"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Trading Date: {data['date']}")
+            print(f"Total Stocks: {data['totalStocks']}")
+            
+            # Display top 10 by volume
+            stocks = sorted(data['stocks'], key=lambda x: x['tradeVolume'], reverse=True)
+            print("\nTop 10 by Volume:")
+            for stock in stocks[:10]:
+                print(f"{stock['stockName']}: {stock['tradeVolume']:,}")
+        else:
+            print(f"Error: {response.status_code}")
+    except Exception as e:
+        print(f"Request failed: {e}")
+
+# Usage
+get_stock_data("2330")  # TSMC
+get_stock_data("0050")  # ETF
+get_all_stocks()
+```
+
+## Technical Details
+
+### Data Source
+- **API Endpoint**: https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL
+- **Update Frequency**: Real-time during trading hours
+- **Data Format**: JSON
+- **Calendar System**: ROC (Republic of China) calendar converted to standard format
+
+### ROC Calendar Conversion
+The TWSE API uses the Republic of China (ROC) calendar system:
+- ROC Year = Western Year - 1911
+- Example: ROC 114 = 2025, ROC 113 = 2024
+- The API automatically converts ROC dates to standard YYYY-MM-DD format
+
+### Architecture
+- **Framework**: Spring Boot 3.4.1
+- **Java Version**: 17
+- **HTTP Client**: Spring RestTemplate
+- **JSON Processing**: Jackson with JSR310 support
+- **Testing**: JUnit 5, Mockito, AssertJ
+
+### Performance Considerations
+- Single API call retrieves all current day stock data
+- No rate limiting from TWSE API (as of implementation date)
+- Efficient filtering for individual stock queries
+- Caching can be implemented at service level if needed
+
+## Development
+
+### Requirements
+- Java 17 or higher
+- Maven 3.6 or higher
+- Spring Boot 3.4.1
+
+### Building
 ```bash
 mvn clean compile
 ```
 
-#### 執行應用程式
-```bash
-mvn spring-boot:run
-```
-
-應用程式將在 `http://localhost:8080` 啟動。
-
-#### 執行測試
+### Testing
 ```bash
 mvn test
 ```
 
-### 使用範例
-
-#### 使用 curl 查詢台積電(2330)股價資料
+### Running Locally
 ```bash
-# 查詢 2024年11月 台積電股價資料
-curl "http://localhost:8080/api/twse/stock/2330?startDate=20241101&endDate=20241130"
-
-# 查詢鴻海(2317)單日股價資料
-curl "http://localhost:8080/api/twse/stock/2317?startDate=20241115&endDate=20241115"
+mvn spring-boot:run
 ```
 
-#### 使用 JavaScript 呼叫 API
-```javascript
-const response = await fetch(
-  'http://localhost:8080/api/twse/stock/2330?startDate=20241101&endDate=20241130'
-);
-const data = await response.json();
-console.log(data);
+The API will be available at `http://localhost:8080`
+
+### Project Structure
+```
+src/
+├── main/java/com/example/backend/
+│   ├── controller/          # REST controllers
+│   ├── service/             # Business logic
+│   ├── model/               # Domain models
+│   ├── dto/                 # Data transfer objects
+│   └── BackendApplication.java
+└── test/java/com/example/backend/
+    ├── controller/          # Controller integration tests
+    ├── service/             # Service unit tests
+    └── model/               # Model tests
 ```
 
-#### 使用 Python 呼叫 API
-```python
-import requests
+## Notes
 
-url = "http://localhost:8080/api/twse/stock/2330"
-params = {
-    "startDate": "20241101",
-    "endDate": "20241130"
-}
+- This API provides **current trading day data only** - it does not support historical date range queries
+- All monetary values are in Taiwan Dollars (TWD)
+- Trading data is only available during Taiwan stock exchange business hours
+- The API automatically handles market holidays and weekends (returns empty data)
+- Stock names are provided in Traditional Chinese as returned by the official TWSE API
 
-response = requests.get(url, params=params)
-data = response.json()
-print(data)
-```
+## License
 
-### 資料來源說明
-
-本 API 透過台灣證券交易所 OpenAPI 取得資料：
-- API 端點: `https://openapi.twse.com.tw/exchangeReport/STOCK_DAY`
-- 資料更新頻率: 每日
-- 支援範圍: 台灣上市股票 (不包含櫃買中心股票)
-- 資料包含: 開盤價、最高價、最低價、收盤價、成交量、成交金額、成交筆數
-
-### 限制與注意事項
-
-1. **資料範圍**: 僅支援台灣上市股票，不包含櫃買中心 (OTC) 股票
-2. **查詢限制**: 建議單次查詢不超過一年的資料範圍
-3. **API 限制**: 受台灣證券交易所 API 使用限制約束
-4. **假日處理**: 非交易日不會有資料回傳
-5. **即時性**: 非即時行情，為每日收盤後更新的歷史資料
-
-### 專案結構
-
-```
-src/main/java/com/example/backend/
-├── BackendApplication.java          # Spring Boot 主程式
-├── controller/
-│   ├── HealthCheckController.java   # 健康檢查控制器
-│   └── StockController.java         # 股票資料控制器
-├── service/
-│   └── TwseService.java            # TWSE API 服務層
-├── model/
-│   ├── StockDailyData.java         # 股票日資料模型
-│   └── TwseApiResponse.java        # TWSE API 回應模型
-└── dto/
-    ├── StockQueryResponse.java      # 股票查詢回應 DTO
-    └── ErrorResponse.java           # 錯誤回應 DTO
-```
-
-### 版本資訊
-
-- v0.0.1-SNAPSHOT: 初始版本，支援基本股票資料查詢功能
+This project is developed for educational and informational purposes. Please ensure compliance with TWSE API terms of service when using in production.

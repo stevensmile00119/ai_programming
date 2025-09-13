@@ -1,34 +1,36 @@
 package com.example.backend.controller;
 
-import com.example.backend.dto.ErrorResponse;
-import com.example.backend.dto.StockQueryResponse;
-import com.example.backend.model.StockDailyData;
+import com.example.backend.dto.StockDataResponse;
+import com.example.backend.dto.AllStocksResponse;
+import com.example.backend.model.TwseStockData;
 import com.example.backend.service.TwseService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for StockController
- * Tests the complete HTTP request/response flow with realistic data
+ * Integration tests for StockController with STOCK_DAY_ALL API
+ * Tests the complete HTTP request/response flow using realistic data
  */
 @WebMvcTest(StockController.class)
-public class StockControllerTest {
+class StockControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -36,312 +38,262 @@ public class StockControllerTest {
     @MockBean
     private TwseService twseService;
 
-    @Autowired
     private ObjectMapper objectMapper;
 
+    @BeforeEach
+    void setUp() {
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+    }
+
     @Test
-    void testGetStockData_Success_TSMC() throws Exception {
-        // Arrange - Mock successful response with realistic TSMC data
-        List<StockDailyData> mockData = Arrays.asList(
-                new StockDailyData(
-                        LocalDate.of(2024, 12, 2),
-                        25486598L,
-                        28945678142L,
-                        new BigDecimal("1135.00"),
-                        new BigDecimal("1145.00"),
-                        new BigDecimal("1125.00"),
-                        new BigDecimal("1140.00"),
-                        "+5.00",
-                        39847
-                ),
-                new StockDailyData(
-                        LocalDate.of(2024, 12, 3),
-                        22345123L,
-                        25234567890L,
-                        new BigDecimal("1140.00"),
-                        new BigDecimal("1150.00"),
-                        new BigDecimal("1130.00"),
-                        new BigDecimal("1145.00"),
-                        "+5.00",
-                        35678
-                )
-        );
+    void getAllStockData_Success_ReturnsAllStocks() throws Exception {
+        // Given - Mock service responses
+        List<TwseStockData> mockStockData = createMockStockDataList();
+        List<StockDataResponse> mockResponseList = createMockResponseList();
+        LocalDate tradingDate = LocalDate.of(2025, 9, 12);
 
-        when(twseService.queryStockData("2330", "20241201", "20241205"))
-                .thenReturn(mockData);
+        when(twseService.getAllStockData()).thenReturn(mockStockData);
+        when(twseService.convertToStockDataResponseList(mockStockData)).thenReturn(mockResponseList);
+        when(twseService.getTradingDate()).thenReturn(tradingDate);
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241201")
-                        .param("endDate", "20241205"))
+        // When & Then
+        MvcResult result = mockMvc.perform(get("/api/twse/stocks"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.stockCode").value("2330"))
-                .andExpect(jsonPath("$.stockName").value("台積電"))
-                .andExpect(jsonPath("$.queryPeriod").value("20241201 to 20241205"))
-                .andExpect(jsonPath("$.message").value("Data retrieved successfully"))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].date").value("2024/12/02"))
-                .andExpect(jsonPath("$.data[0].openingPrice").value(1135.00))
-                .andExpect(jsonPath("$.data[0].highestPrice").value(1145.00))
-                .andExpect(jsonPath("$.data[0].lowestPrice").value(1125.00))
-                .andExpect(jsonPath("$.data[0].closingPrice").value(1140.00))
-                .andExpect(jsonPath("$.data[0].tradeVolume").value(25486598))
-                .andExpect(jsonPath("$.data[0].change").value("+5.00"))
-                .andExpect(jsonPath("$.data[0].transaction").value(39847));
+                .andReturn();
 
-        verify(twseService).queryStockData("2330", "20241201", "20241205");
+        String responseJson = result.getResponse().getContentAsString();
+        AllStocksResponse response = objectMapper.readValue(responseJson, AllStocksResponse.class);
+
+        assertThat(response.getDate()).isEqualTo(tradingDate);
+        assertThat(response.getTotalStocks()).isEqualTo(3);
+        assertThat(response.getStocks()).hasSize(3);
+        assertThat(response.getMessage()).isEqualTo("All stock data retrieved successfully");
+
+        // Verify first stock
+        StockDataResponse firstStock = response.getStocks().get(0);
+        assertThat(firstStock.getStockCode()).isEqualTo("0050");
+        assertThat(firstStock.getStockName()).isEqualTo("元大台灣50");
+        assertThat(firstStock.getClosingPrice()).isEqualByComparingTo(new BigDecimal("56.00"));
     }
 
     @Test
-    void testGetStockData_Success_MediaTek() throws Exception {
-        // Arrange - Test different stock with realistic MediaTek data
-        List<StockDailyData> mockData = Arrays.asList(
-                new StockDailyData(
-                        LocalDate.of(2024, 12, 2),
-                        5234567L,
-                        4123456789L,
-                        new BigDecimal("788.00"),
-                        new BigDecimal("795.00"),
-                        new BigDecimal("785.00"),
-                        new BigDecimal("792.00"),
-                        "+4.00",
-                        12456
-                )
-        );
+    void getStockData_ValidStockCode_ReturnsStock() throws Exception {
+        // Given - Mock single stock data for TSMC (2330)
+        TwseStockData mockStockData = createTsmcMockData();
+        StockDataResponse mockResponse = createTsmcMockResponse();
 
-        when(twseService.queryStockData("2454", "20241202", "20241202"))
-                .thenReturn(mockData);
+        when(twseService.getStockData("2330")).thenReturn(mockStockData);
+        when(twseService.convertToStockDataResponse(mockStockData)).thenReturn(mockResponse);
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2454")
-                        .param("startDate", "20241202")
-                        .param("endDate", "20241202"))
+        // When & Then
+        MvcResult result = mockMvc.perform(get("/api/twse/stocks/2330"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockCode").value("2454"))
-                .andExpect(jsonPath("$.stockName").value("聯發科"))
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].closingPrice").value(792.00));
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
 
-        verify(twseService).queryStockData("2454", "20241202", "20241202");
+        String responseJson = result.getResponse().getContentAsString();
+        StockDataResponse response = objectMapper.readValue(responseJson, StockDataResponse.class);
+
+        assertThat(response.getStockCode()).isEqualTo("2330");
+        assertThat(response.getStockName()).isEqualTo("台積電");
+        assertThat(response.getClosingPrice()).isEqualByComparingTo(new BigDecimal("1140.00"));
+        assertThat(response.getTradeVolume()).isEqualTo(25486598L);
+        assertThat(response.getChange()).isEqualTo("+5.00");
     }
 
     @Test
-    void testGetStockData_Success_EmptyResult() throws Exception {
-        // Arrange - Test when no data is available (e.g., holiday period)
-        when(twseService.queryStockData("2330", "20241225", "20241225"))
-                .thenReturn(Collections.emptyList());
+    void getStockData_ETF_ReturnsETFData() throws Exception {
+        // Given - Mock ETF data for 0050
+        TwseStockData mockStockData = create0050MockData();
+        StockDataResponse mockResponse = create0050MockResponse();
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241225")
-                        .param("endDate", "20241225"))
+        when(twseService.getStockData("0050")).thenReturn(mockStockData);
+        when(twseService.convertToStockDataResponse(mockStockData)).thenReturn(mockResponse);
+
+        // When & Then
+        MvcResult result = mockMvc.perform(get("/api/twse/stocks/0050"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockCode").value("2330"))
-                .andExpect(jsonPath("$.stockName").value("台積電"))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(0))
-                .andExpect(jsonPath("$.message").value("Data retrieved successfully"));
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andReturn();
+
+        String responseJson = result.getResponse().getContentAsString();
+        StockDataResponse response = objectMapper.readValue(responseJson, StockDataResponse.class);
+
+        assertThat(response.getStockCode()).isEqualTo("0050");
+        assertThat(response.getStockName()).isEqualTo("元大台灣50");
+        assertThat(response.getClosingPrice()).isEqualByComparingTo(new BigDecimal("56.00"));
     }
 
     @Test
-    void testGetStockData_InvalidStockCode() throws Exception {
-        // Arrange - Mock validation error
-        when(twseService.queryStockData("123", "20241201", "20241205"))
-                .thenThrow(new IllegalArgumentException("Stock code must be 4 digits"));
+    void getStockData_StockNotFound_Returns404() throws Exception {
+        // Given - Stock not found
+        when(twseService.getStockData("9999")).thenReturn(null);
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/123")
-                        .param("startDate", "20241201")
-                        .param("endDate", "20241205"))
+        // When & Then
+        mockMvc.perform(get("/api/twse/stocks/9999"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error").value("Stock Not Found"))
+                .andExpect(jsonPath("$.message").value("No data found for stock code: 9999"))
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void getStockData_InvalidStockCode_Returns400() throws Exception {
+        // Given - Invalid stock code
+        when(twseService.getStockData("23")).thenThrow(
+                new IllegalArgumentException("Stock code must be 4 digits"));
+
+        // When & Then
+        mockMvc.perform(get("/api/twse/stocks/23"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error").value("Invalid Input"))
                 .andExpect(jsonPath("$.message").value("Stock code must be 4 digits"))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-
-    @Test
-    void testGetStockData_InvalidDateFormat() throws Exception {
-        // Arrange - Mock date format error
-        when(twseService.queryStockData("2330", "2024-12-01", "20241205"))
-                .thenThrow(new IllegalArgumentException("Start date must be in YYYYMMDD format"));
-
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "2024-12-01")
-                        .param("endDate", "20241205"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Invalid Input"))
-                .andExpect(jsonPath("$.message").value("Start date must be in YYYYMMDD format"))
                 .andExpect(jsonPath("$.status").value(400));
     }
 
     @Test
-    void testGetStockData_DateRangeError() throws Exception {
-        // Arrange - Mock date range validation error
-        when(twseService.queryStockData("2330", "20241205", "20241201"))
-                .thenThrow(new IllegalArgumentException("Start date must be before end date"));
+    void getStockData_ExternalAPIError_Returns503() throws Exception {
+        // Given - External API error
+        when(twseService.getStockData("2330")).thenThrow(
+                new RuntimeException("Failed to fetch stock data from TWSE API: Connection timeout"));
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241205")
-                        .param("endDate", "20241201"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Invalid Input"))
-                .andExpect(jsonPath("$.message").value("Start date must be before end date"));
-    }
-
-    @Test
-    void testGetStockData_TwseApiError() throws Exception {
-        // Arrange - Mock TWSE API failure (realistic scenario)
-        when(twseService.queryStockData("2330", "20241201", "20241205"))
-                .thenThrow(new RuntimeException("Failed to fetch stock data from TWSE API: Connection timeout"));
-
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241201")
-                        .param("endDate", "20241205"))
+        // When & Then
+        mockMvc.perform(get("/api/twse/stocks/2330"))
                 .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error").value("External API Error"))
-                .andExpect(jsonPath("$.message").value("Failed to fetch stock data from TWSE API: Connection timeout"))
                 .andExpect(jsonPath("$.status").value(503));
     }
 
     @Test
-    void testGetStockData_TwseApiInvalidResponse() throws Exception {
-        // Arrange - Mock invalid API response
-        when(twseService.queryStockData("9999", "20241201", "20241205"))
-                .thenThrow(new RuntimeException("Invalid response from TWSE API"));
+    void getAllStockData_ExternalAPIError_Returns503() throws Exception {
+        // Given - External API error for all stocks
+        when(twseService.getAllStockData()).thenThrow(
+                new RuntimeException("Failed to fetch stock data from TWSE API: Network error"));
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/9999")
-                        .param("startDate", "20241201")
-                        .param("endDate", "20241205"))
+        // When & Then
+        mockMvc.perform(get("/api/twse/stocks"))
                 .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.error").value("External API Error"))
-                .andExpect(jsonPath("$.message").value("Invalid response from TWSE API"));
-    }
-
-    @Test
-    void testGetStockData_UnexpectedException() throws Exception {
-        // Arrange - Mock unexpected system error
-        when(twseService.queryStockData("2330", "20241201", "20241205"))
-                .thenThrow(new RuntimeException("Unexpected null value"));
-
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241201")
-                        .param("endDate", "20241205"))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error").value("External API Error"))
-                .andExpect(jsonPath("$.message").value("Unexpected null value"))
                 .andExpect(jsonPath("$.status").value(503));
     }
 
     @Test
-    void testGetStockData_MissingParameters() throws Exception {
-        // Act & Assert - Test missing startDate parameter
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("endDate", "20241205"))
-                .andExpect(status().isBadRequest());
+    void getStockData_UnexpectedError_Returns503() throws Exception {
+        // Given - RuntimeException which should return 503 Service Unavailable
+        when(twseService.convertToStockDataResponse(any())).thenThrow(
+                new NullPointerException("Unexpected null value"));
 
-        // Act & Assert - Test missing endDate parameter
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241201"))
-                .andExpect(status().isBadRequest());
+        TwseStockData mockData = createTsmcMockData();
+        when(twseService.getStockData("2330")).thenReturn(mockData);
+
+        // When & Then
+        mockMvc.perform(get("/api/twse/stocks/2330"))
+                .andExpect(status().isServiceUnavailable()) // NullPointerException extends RuntimeException, so it should be 503
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error").value("External API Error"))
+                .andExpect(jsonPath("$.status").value(503));
     }
 
     @Test
-    void testGetStockData_StockNameMapping() throws Exception {
-        // Test stock name mapping for various stocks
-        List<StockDailyData> mockData = Arrays.asList(
-                new StockDailyData(LocalDate.of(2024, 12, 2), 1000000L, 5000000000L,
-                        new BigDecimal("100.00"), new BigDecimal("105.00"), 
-                        new BigDecimal("98.00"), new BigDecimal("102.00"), "+2.00", 5000)
-        );
-
-        // Test different stock codes and their corresponding names
-        String[][] stockTests = {
-                {"2317", "鴻海"},
-                {"2454", "聯發科"},
-                {"2382", "廣達"},
-                {"3008", "大立光"},
-                {"2303", "聯電"},
-                {"1301", "台塑"},
-                {"2881", "富邦金"},
-                {"2002", "中鋼"},
-                {"1216", "統一"},
-                {"9999", "股票代碼 9999"} // Unknown stock
-        };
-
-        for (String[] stockTest : stockTests) {
-            String stockCode = stockTest[0];
-            String expectedName = stockTest[1];
-            
-            when(twseService.queryStockData(eq(stockCode), anyString(), anyString()))
-                    .thenReturn(mockData);
-
-            mockMvc.perform(get("/api/twse/stock/" + stockCode)
-                            .param("startDate", "20241201")
-                            .param("endDate", "20241205"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.stockCode").value(stockCode))
-                    .andExpect(jsonPath("$.stockName").value(expectedName));
-        }
-    }
-
-    @Test
-    void testHealthCheck() throws Exception {
-        // Act & Assert
+    void healthCheck_Always_ReturnsOK() throws Exception {
+        // When & Then
         mockMvc.perform(get("/api/twse/health"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("TWSE API service is running"));
     }
 
-    @Test
-    void testGetStockData_RealWorldScenario_WeekendQuery() throws Exception {
-        // Arrange - Simulate querying weekend dates (no trading data)
-        when(twseService.queryStockData("2330", "20241207", "20241208"))
-                .thenReturn(Collections.emptyList());
+    // Helper methods to create mock data based on actual API response format
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241207") // Saturday
-                        .param("endDate", "20241208"))  // Sunday
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(0))
-                .andExpect(jsonPath("$.message").value("Data retrieved successfully"));
+    private List<TwseStockData> createMockStockDataList() {
+        TwseStockData etf = create0050MockData();
+        TwseStockData tsmc = createTsmcMockData();
+        TwseStockData mediatek = createMediatekMockData();
+        return List.of(etf, tsmc, mediatek);
     }
 
-    @Test
-    void testGetStockData_RealWorldScenario_SingleDayQuery() throws Exception {
-        // Arrange - Single day query (common use case)
-        List<StockDailyData> singleDayData = Arrays.asList(
-                new StockDailyData(
-                        LocalDate.of(2024, 12, 2),
-                        25486598L,
-                        28945678142L,
-                        new BigDecimal("1135.00"),
-                        new BigDecimal("1145.00"),
-                        new BigDecimal("1125.00"),
-                        new BigDecimal("1140.00"),
-                        "+5.00",
-                        39847
-                )
+    private List<StockDataResponse> createMockResponseList() {
+        StockDataResponse etf = create0050MockResponse();
+        StockDataResponse tsmc = createTsmcMockResponse();
+        StockDataResponse mediatek = createMediatekMockResponse();
+        return List.of(etf, tsmc, mediatek);
+    }
+
+    private TwseStockData create0050MockData() {
+        // Based on actual response: {"Date":"1140912","Code":"0050","Name":"元大台灣50",...}
+        TwseStockData stock = new TwseStockData();
+        stock.setDate("1140912");
+        stock.setCode("0050");
+        stock.setName("元大台灣50");
+        stock.setTradeVolume("59101728");
+        stock.setTradeValue("3303299908");
+        stock.setOpeningPrice("55.75");
+        stock.setHighestPrice("56.00");
+        stock.setLowestPrice("55.70");
+        stock.setClosingPrice("56.00");
+        stock.setChange("0.5500");
+        stock.setTransaction("36831");
+        return stock;
+    }
+
+    private StockDataResponse create0050MockResponse() {
+        return new StockDataResponse(
+                "0050", "元大台灣50", LocalDate.of(2025, 9, 12),
+                new BigDecimal("55.75"), new BigDecimal("56.00"), new BigDecimal("55.70"),
+                new BigDecimal("56.00"), "0.5500", 59101728L, 3303299908L, 36831
         );
+    }
 
-        when(twseService.queryStockData("2330", "20241202", "20241202"))
-                .thenReturn(singleDayData);
+    private TwseStockData createTsmcMockData() {
+        TwseStockData stock = new TwseStockData();
+        stock.setDate("1140912");
+        stock.setCode("2330");
+        stock.setName("台積電");
+        stock.setTradeVolume("25486598");
+        stock.setTradeValue("29101234567");
+        stock.setOpeningPrice("1135.00");
+        stock.setHighestPrice("1145.00");
+        stock.setLowestPrice("1125.00");
+        stock.setClosingPrice("1140.00");
+        stock.setChange("+5.00");
+        stock.setTransaction("8456");
+        return stock;
+    }
 
-        // Act & Assert
-        mockMvc.perform(get("/api/twse/stock/2330")
-                        .param("startDate", "20241202")
-                        .param("endDate", "20241202"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.queryPeriod").value("20241202 to 20241202"))
-                .andExpect(jsonPath("$.data.length()").value(1));
+    private StockDataResponse createTsmcMockResponse() {
+        return new StockDataResponse(
+                "2330", "台積電", LocalDate.of(2025, 9, 12),
+                new BigDecimal("1135.00"), new BigDecimal("1145.00"), new BigDecimal("1125.00"),
+                new BigDecimal("1140.00"), "+5.00", 25486598L, 29101234567L, 8456
+        );
+    }
+
+    private TwseStockData createMediatekMockData() {
+        TwseStockData stock = new TwseStockData();
+        stock.setDate("1140912");
+        stock.setCode("2454");
+        stock.setName("聯發科");
+        stock.setTradeVolume("18567234");
+        stock.setTradeValue("18567890123");
+        stock.setOpeningPrice("890.00");
+        stock.setHighestPrice("910.00");
+        stock.setLowestPrice("885.00");
+        stock.setClosingPrice("905.00");
+        stock.setChange("+15.00");
+        stock.setTransaction("6789");
+        return stock;
+    }
+
+    private StockDataResponse createMediatekMockResponse() {
+        return new StockDataResponse(
+                "2454", "聯發科", LocalDate.of(2025, 9, 12),
+                new BigDecimal("890.00"), new BigDecimal("910.00"), new BigDecimal("885.00"),
+                new BigDecimal("905.00"), "+15.00", 18567234L, 18567890123L, 6789
+        );
     }
 }

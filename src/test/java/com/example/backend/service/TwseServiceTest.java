@@ -1,33 +1,30 @@
 package com.example.backend.service;
 
-import com.example.backend.model.StockDailyData;
-import com.example.backend.model.TwseApiResponse;
+import com.example.backend.dto.StockDataResponse;
+import com.example.backend.model.TwseStockData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for TwseService based on real TWSE API response patterns
+ * Unit tests for TwseService with STOCK_DAY_ALL API
+ * Using realistic mock responses based on the actual API response format provided
  */
 @ExtendWith(MockitoExtension.class)
-public class TwseServiceTest {
+class TwseServiceTest {
 
     @Mock
     private RestTemplate restTemplate;
@@ -37,256 +34,240 @@ public class TwseServiceTest {
     @BeforeEach
     void setUp() {
         twseService = new TwseService();
-        // Use reflection to inject the mock RestTemplate
+        // Inject the mock RestTemplate using reflection
         try {
-            java.lang.reflect.Field restTemplateField = TwseService.class.getDeclaredField("restTemplate");
-            restTemplateField.setAccessible(true);
-            restTemplateField.set(twseService, restTemplate);
+            java.lang.reflect.Field field = TwseService.class.getDeclaredField("restTemplate");
+            field.setAccessible(true);
+            field.set(twseService, restTemplate);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     @Test
-    void testQueryStockData_SuccessfulResponse() {
-        // Arrange - Create realistic TWSE API response based on actual API structure
-        TwseApiResponse mockResponse = createSuccessfulMockResponse();
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
+    void getAllStockData_Success_ReturnsValidData() {
+        // Given - Mock successful TWSE STOCK_DAY_ALL API response
+        TwseStockData[] mockResponse = createSuccessfulMockResponse();
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
                 .thenReturn(mockResponse);
 
-        // Act
-        List<StockDailyData> result = twseService.queryStockData("2330", "20241201", "20241205");
+        // When
+        List<TwseStockData> result = twseService.getAllStockData();
 
-        // Assert
-        assertNotNull(result);
-        assertEquals(3, result.size());
+        // Then
+        assertThat(result).isNotEmpty();
+        assertThat(result).hasSize(3); // Three stocks in mock data
         
-        // Verify first day data
-        StockDailyData firstDay = result.get(0);
-        assertEquals(LocalDate.of(2024, 12, 2), firstDay.getDate());
-        assertEquals(new BigDecimal("1135.00"), firstDay.getOpeningPrice());
-        assertEquals(new BigDecimal("1145.00"), firstDay.getHighestPrice());
-        assertEquals(new BigDecimal("1125.00"), firstDay.getLowestPrice());
-        assertEquals(new BigDecimal("1140.00"), firstDay.getClosingPrice());
-        assertEquals(25486598L, firstDay.getTradeVolume());
-        assertEquals("+5.00", firstDay.getChange());
-        assertEquals(39847, firstDay.getTransaction());
-
-        // Verify API was called with correct parameters
-        verify(restTemplate).getForObject(
-                contains("https://openapi.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=20241201&stockNo=2330"),
-                eq(TwseApiResponse.class)
-        );
+        TwseStockData first = result.get(0);
+        assertThat(first.getCode()).isEqualTo("0050");
+        assertThat(first.getName()).isEqualTo("元大台灣50");
+        assertThat(first.getDate()).isEqualTo("1140912"); // ROC date format
+        assertThat(first.getClosingPrice()).isEqualTo("56.00");
     }
 
     @Test
-    void testQueryStockData_MultipleMonths() {
-        // Arrange - Test cross-month query
-        TwseApiResponse mockResponse1 = createMockResponseForMonth("113/11");
-        TwseApiResponse mockResponse2 = createMockResponseForMonth("113/12");
-        
-        when(restTemplate.getForObject(contains("date=20241101"), eq(TwseApiResponse.class)))
-                .thenReturn(mockResponse1);
-        when(restTemplate.getForObject(contains("date=20241201"), eq(TwseApiResponse.class)))
-                .thenReturn(mockResponse2);
+    void getStockData_ValidStockCode_ReturnsStockData() {
+        // Given
+        TwseStockData[] mockResponse = createSuccessfulMockResponse();
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
+                .thenReturn(mockResponse);
 
-        // Act
-        List<StockDailyData> result = twseService.queryStockData("2330", "20241129", "20241203");
+        // When
+        TwseStockData result = twseService.getStockData("2330");
 
-        // Assert
-        assertNotNull(result);
-        // Should filter dates to only include those within the specified range
-        assertTrue(result.size() > 0);
-        
-        // Verify all returned dates are within the specified range
-        LocalDate startDate = LocalDate.of(2024, 11, 29);
-        LocalDate endDate = LocalDate.of(2024, 12, 3);
-        for (StockDailyData data : result) {
-            assertFalse(data.getDate().isBefore(startDate), "Date should not be before start date");
-            assertFalse(data.getDate().isAfter(endDate), "Date should not be after end date");
-        }
-
-        // Verify both API calls were made
-        verify(restTemplate).getForObject(contains("date=20241101"), eq(TwseApiResponse.class));
-        verify(restTemplate).getForObject(contains("date=20241201"), eq(TwseApiResponse.class));
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getCode()).isEqualTo("2330");
+        assertThat(result.getName()).isEqualTo("台積電");
+        assertThat(result.getClosingPrice()).isEqualTo("1140.00");
     }
 
     @Test
-    void testQueryStockData_ApiError() {
-        // Arrange - Mock API failure
-        TwseApiResponse errorResponse = new TwseApiResponse();
-        errorResponse.setStat("查詢錯誤"); // Error status in Chinese as per TWSE API
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
-                .thenReturn(errorResponse);
+    void getStockData_InvalidStockCode_ReturnsNull() {
+        // Given
+        TwseStockData[] mockResponse = createSuccessfulMockResponse();
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
+                .thenReturn(mockResponse);
 
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            twseService.queryStockData("9999", "20241201", "20241205");
-        });
-        
-        assertEquals("Invalid response from TWSE API", exception.getMessage());
+        // When
+        TwseStockData result = twseService.getStockData("9999");
+
+        // Then
+        assertThat(result).isNull();
     }
 
     @Test
-    void testQueryStockData_RestClientException() {
-        // Arrange - Mock network error
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
+    void getStockData_NetworkError_ThrowsException() {
+        // Given
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
                 .thenThrow(new RestClientException("Connection timeout"));
 
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            twseService.queryStockData("2330", "20241201", "20241205");
-        });
-        
-        assertTrue(exception.getMessage().contains("Failed to fetch stock data from TWSE API"));
-        assertTrue(exception.getMessage().contains("Connection timeout"));
+        // When & Then
+        assertThatThrownBy(() -> twseService.getStockData("2330"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to fetch stock data from TWSE API");
     }
 
     @Test
-    void testQueryStockData_InvalidStockCode() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            twseService.queryStockData("123", "20241201", "20241205"); // Invalid 3-digit code
-        });
-        
-        assertEquals("Stock code must be 4 digits", exception.getMessage());
+    void getStockData_EmptyResponse_ThrowsException() {
+        // Given - Empty response
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
+                .thenReturn(new TwseStockData[0]);
+
+        // When & Then
+        assertThatThrownBy(() -> twseService.getAllStockData())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("No data returned from TWSE API");
     }
 
     @Test
-    void testQueryStockData_InvalidDateFormat() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            twseService.queryStockData("2330", "2024-12-01", "20241205"); // Wrong date format
-        });
-        
-        assertEquals("Start date must be in YYYYMMDD format", exception.getMessage());
-    }
-
-    @Test
-    void testQueryStockData_StartDateAfterEndDate() {
-        // Act & Assert
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            twseService.queryStockData("2330", "20241205", "20241201"); // Start after end
-        });
-        
-        assertEquals("Start date must be before end date", exception.getMessage());
-    }
-
-    @Test
-    void testQueryStockData_EmptyDataResponse() {
-        // Arrange - API returns empty data (e.g., no trading days)
-        TwseApiResponse emptyResponse = new TwseApiResponse();
-        emptyResponse.setStat("OK");
-        emptyResponse.setData(Collections.emptyList());
-        
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
-                .thenReturn(emptyResponse);
-
-        // Act
-        List<StockDailyData> result = twseService.queryStockData("2330", "20241201", "20241205");
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
-    void testQueryStockData_NullApiResponse() {
-        // Arrange - API returns null
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
+    void getStockData_NullResponse_ThrowsException() {
+        // Given - Null response
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
                 .thenReturn(null);
 
-        // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            twseService.queryStockData("2330", "20241201", "20241205");
-        });
-        
-        assertEquals("Invalid response from TWSE API", exception.getMessage());
+        // When & Then
+        assertThatThrownBy(() -> twseService.getAllStockData())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("No data returned from TWSE API");
     }
 
     @Test
-    void testRocDateConversion() {
-        // Arrange - Test ROC (Republic of China) date conversion
-        TwseApiResponse mockResponse = new TwseApiResponse();
-        mockResponse.setStat("OK");
-        mockResponse.setData(Arrays.asList(
-                Arrays.asList("113/12/02", "25,486,598", "28,945,678,142", "1135.00", "1145.00", "1125.00", "1140.00", "+5.00", "39,847")
-        ));
-        
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
-                .thenReturn(mockResponse);
+    void validateStockCode_InvalidInputs_ThrowsException() {
+        // When & Then - Test various invalid stock codes
+        assertThatThrownBy(() -> twseService.getStockData(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Stock code cannot be empty");
 
-        // Act
-        List<StockDailyData> result = twseService.queryStockData("2330", "20241201", "20241205");
+        assertThatThrownBy(() -> twseService.getStockData(""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Stock code cannot be empty");
 
-        // Assert - ROC year 113 should convert to AD year 2024 (113 + 1911 = 2024)
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        assertEquals(LocalDate.of(2024, 12, 2), result.get(0).getDate());
+        assertThatThrownBy(() -> twseService.getStockData("23"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Stock code must be 4 digits");
+
+        assertThatThrownBy(() -> twseService.getStockData("TSMC"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Stock code must be 4 digits");
     }
 
     @Test
-    void testDataParsingWithCommasAndSpecialValues() {
-        // Arrange - Test parsing of numbers with commas and special values like "--"
-        TwseApiResponse mockResponse = new TwseApiResponse();
-        mockResponse.setStat("OK");
-        mockResponse.setData(Arrays.asList(
-                Arrays.asList("113/12/02", "--", "28,945,678,142", "--", "1145.00", "1125.00", "1140.00", "X0.00", "39,847")
-        ));
-        
-        when(restTemplate.getForObject(anyString(), eq(TwseApiResponse.class)))
+    void convertToStockDataResponse_ValidData_ReturnsResponse() {
+        // Given
+        TwseStockData stockData = createSingleStockData();
+
+        // When
+        StockDataResponse result = twseService.convertToStockDataResponse(stockData);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getStockCode()).isEqualTo("2330");
+        assertThat(result.getStockName()).isEqualTo("台積電");
+        assertThat(result.getDate()).isEqualTo(LocalDate.of(2025, 9, 12)); // ROC 114/09/12
+        assertThat(result.getClosingPrice()).isEqualByComparingTo(new BigDecimal("1140.00"));
+        assertThat(result.getTradeVolume()).isEqualTo(25486598L);
+        assertThat(result.getChange()).isEqualTo("+5.00");
+    }
+
+    @Test
+    void convertToStockDataResponse_NullInput_ReturnsNull() {
+        // When & Then
+        StockDataResponse result = twseService.convertToStockDataResponse(null);
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void convertToStockDataResponseList_ValidList_ReturnsResponseList() {
+        // Given
+        TwseStockData[] mockResponse = createSuccessfulMockResponse();
+        List<TwseStockData> stockDataList = List.of(mockResponse);
+
+        // When
+        List<StockDataResponse> result = twseService.convertToStockDataResponseList(stockDataList);
+
+        // Then
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).getStockCode()).isEqualTo("0050");
+        assertThat(result.get(1).getStockCode()).isEqualTo("2330");
+        assertThat(result.get(2).getStockCode()).isEqualTo("2454");
+    }
+
+    @Test
+    void getTradingDate_ValidData_ReturnsDate() {
+        // Given
+        TwseStockData[] mockResponse = createSuccessfulMockResponse();
+        when(restTemplate.getForObject(any(String.class), eq(TwseStockData[].class)))
                 .thenReturn(mockResponse);
 
-        // Act
-        List<StockDailyData> result = twseService.queryStockData("2330", "20241201", "20241205");
+        // When
+        LocalDate result = twseService.getTradingDate();
 
-        // Assert
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        StockDailyData data = result.get(0);
-        assertEquals(0L, data.getTradeVolume()); // "--" should convert to 0
-        assertEquals(BigDecimal.ZERO, data.getOpeningPrice()); // "--" should convert to 0
-        assertEquals(28945678142L, data.getTradeValue()); // Commas should be removed
-        assertEquals("X0.00", data.getChange()); // Special change format should be preserved
+        // Then
+        assertThat(result).isEqualTo(LocalDate.of(2025, 9, 12)); // ROC 1140912 -> AD 2025-09-12
     }
 
-    // Helper methods to create mock responses based on real TWSE API response structure
-    private TwseApiResponse createSuccessfulMockResponse() {
-        TwseApiResponse response = new TwseApiResponse();
-        response.setStat("OK");
-        response.setDate("113年12月");
-        response.setTitle("113年12月 2330 台積電 各日成交資訊");
-        response.setFields(Arrays.asList("日期", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌價差", "成交筆數"));
-        response.setData(Arrays.asList(
-                Arrays.asList("113/12/02", "25,486,598", "28,945,678,142", "1135.00", "1145.00", "1125.00", "1140.00", "+5.00", "39,847"),
-                Arrays.asList("113/12/03", "22,345,123", "25,234,567,890", "1140.00", "1150.00", "1130.00", "1145.00", "+5.00", "35,678"),
-                Arrays.asList("113/12/04", "28,567,234", "32,678,901,234", "1145.00", "1155.00", "1140.00", "1150.00", "+5.00", "42,345")
-        ));
-        response.setNotes(Arrays.asList("符號說明:+表示漲-表示跌 X表示不比價"));
-        return response;
+    // Helper methods to create mock responses based on the actual API format
+
+    private TwseStockData[] createSuccessfulMockResponse() {
+        // Based on the actual response format provided in the comment:
+        // [{"Date":"1140912","Code":"0050","Name":"元大台灣50","TradeVolume":"59101728",...}]
+        
+        TwseStockData stock1 = new TwseStockData();
+        stock1.setDate("1140912"); // ROC date format
+        stock1.setCode("0050");
+        stock1.setName("元大台灣50");
+        stock1.setTradeVolume("59101728");
+        stock1.setTradeValue("3303299908");
+        stock1.setOpeningPrice("55.75");
+        stock1.setHighestPrice("56.00");
+        stock1.setLowestPrice("55.70");
+        stock1.setClosingPrice("56.00");
+        stock1.setChange("0.5500");
+        stock1.setTransaction("36831");
+
+        TwseStockData stock2 = new TwseStockData();
+        stock2.setDate("1140912");
+        stock2.setCode("2330");
+        stock2.setName("台積電");
+        stock2.setTradeVolume("25486598");
+        stock2.setTradeValue("29101234567");
+        stock2.setOpeningPrice("1135.00");
+        stock2.setHighestPrice("1145.00");
+        stock2.setLowestPrice("1125.00");
+        stock2.setClosingPrice("1140.00");
+        stock2.setChange("+5.00");
+        stock2.setTransaction("8456");
+
+        TwseStockData stock3 = new TwseStockData();
+        stock3.setDate("1140912");
+        stock3.setCode("2454");
+        stock3.setName("聯發科");
+        stock3.setTradeVolume("18567234");
+        stock3.setTradeValue("18567890123");
+        stock3.setOpeningPrice("890.00");
+        stock3.setHighestPrice("910.00");
+        stock3.setLowestPrice("885.00");
+        stock3.setClosingPrice("905.00");
+        stock3.setChange("+15.00");
+        stock3.setTransaction("6789");
+
+        return new TwseStockData[]{stock1, stock2, stock3};
     }
 
-    private TwseApiResponse createMockResponseForMonth(String rocMonth) {
-        TwseApiResponse response = new TwseApiResponse();
-        response.setStat("OK");
-        response.setDate(rocMonth + "年");
-        response.setTitle(rocMonth + " 2330 台積電 各日成交資訊");
-        response.setFields(Arrays.asList("日期", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌價差", "成交筆數"));
-        
-        if ("113/11".equals(rocMonth)) {
-            response.setData(Arrays.asList(
-                    Arrays.asList("113/11/29", "20,123,456", "22,345,678,901", "1110.00", "1120.00", "1105.00", "1115.00", "+3.00", "32,456"),
-                    Arrays.asList("113/11/30", "21,234,567", "23,456,789,012", "1115.00", "1125.00", "1110.00", "1120.00", "+5.00", "33,567")
-            ));
-        } else if ("113/12".equals(rocMonth)) {
-            response.setData(Arrays.asList(
-                    Arrays.asList("113/12/01", "23,456,789", "26,789,012,345", "1120.00", "1130.00", "1115.00", "1125.00", "+5.00", "36,789"),
-                    Arrays.asList("113/12/02", "25,486,598", "28,945,678,142", "1125.00", "1135.00", "1120.00", "1130.00", "+5.00", "39,847"),
-                    Arrays.asList("113/12/03", "22,345,123", "25,234,567,890", "1130.00", "1140.00", "1125.00", "1135.00", "+5.00", "35,678")
-            ));
-        }
-        
-        response.setNotes(Arrays.asList("符號說明:+表示漲-表示跌 X表示不比價"));
-        return response;
+    private TwseStockData createSingleStockData() {
+        TwseStockData stock = new TwseStockData();
+        stock.setDate("1140912");
+        stock.setCode("2330");
+        stock.setName("台積電");
+        stock.setTradeVolume("25486598");
+        stock.setTradeValue("29101234567");
+        stock.setOpeningPrice("1135.00");
+        stock.setHighestPrice("1145.00");
+        stock.setLowestPrice("1125.00");
+        stock.setClosingPrice("1140.00");
+        stock.setChange("+5.00");
+        stock.setTransaction("8456");
+        return stock;
     }
 }

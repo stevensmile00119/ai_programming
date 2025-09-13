@@ -1,8 +1,9 @@
 package com.example.backend.controller;
 
 import com.example.backend.dto.ErrorResponse;
-import com.example.backend.dto.StockQueryResponse;
-import com.example.backend.model.StockDailyData;
+import com.example.backend.dto.StockDataResponse;
+import com.example.backend.dto.AllStocksResponse;
+import com.example.backend.model.TwseStockData;
 import com.example.backend.service.TwseService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * REST Controller for Taiwan Stock Exchange stock data queries
+ * REST Controller for Taiwan Stock Exchange current day stock data queries
  */
 @RestController
 @RequestMapping("/api/twse")
@@ -29,30 +30,49 @@ public class StockController {
     }
 
     /**
-     * Query stock daily data for a specific stock code and date range
+     * Get all current day stock data
      * 
-     * @param stockNo Stock code (4 digits, e.g., "2330")
-     * @param startDate Start date in YYYYMMDD format
-     * @param endDate End date in YYYYMMDD format
-     * @return ResponseEntity with stock data or error message
+     * @return ResponseEntity with all stock data or error message
      */
-    @GetMapping("/stock/{stockNo}")
-    public ResponseEntity<?> getStockData(
-            @PathVariable String stockNo,
-            @RequestParam String startDate,
-            @RequestParam String endDate) {
-        
+    @GetMapping("/stocks")
+    public ResponseEntity<?> getAllStockData() {
         try {
-            List<StockDailyData> stockData = twseService.queryStockData(stockNo, startDate, endDate);
+            List<TwseStockData> allStockData = twseService.getAllStockData();
+            List<StockDataResponse> stockResponses = twseService.convertToStockDataResponseList(allStockData);
             
-            StockQueryResponse response = new StockQueryResponse(
-                stockNo,
-                getStockName(stockNo), // You could enhance this with a stock name lookup
-                startDate + " to " + endDate,
-                stockData,
-                "Data retrieved successfully"
+            AllStocksResponse response = new AllStocksResponse(
+                twseService.getTradingDate(),
+                stockResponses.size(),
+                stockResponses,
+                "All stock data retrieved successfully"
             );
             
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            return buildErrorResponse(HttpStatus.SERVICE_UNAVAILABLE, "External API Error", e.getMessage());
+        } catch (Exception e) {
+            return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "An unexpected error occurred");
+        }
+    }
+
+    /**
+     * Get current day stock data for a specific stock code
+     * 
+     * @param stockCode Stock code (4 digits, e.g., "2330", "0050")
+     * @return ResponseEntity with stock data or error message
+     */
+    @GetMapping("/stocks/{stockCode}")
+    public ResponseEntity<?> getStockData(@PathVariable String stockCode) {
+        try {
+            TwseStockData stockData = twseService.getStockData(stockCode);
+            
+            if (stockData == null) {
+                return buildErrorResponse(HttpStatus.NOT_FOUND, "Stock Not Found", 
+                    "No data found for stock code: " + stockCode);
+            }
+            
+            StockDataResponse response = twseService.convertToStockDataResponse(stockData);
             return ResponseEntity.ok(response);
             
         } catch (IllegalArgumentException e) {
@@ -84,26 +104,5 @@ public class StockController {
         );
         
         return ResponseEntity.status(status).body(errorResponse);
-    }
-
-    /**
-     * Get stock name by stock code (simplified implementation)
-     * In a real application, this could be enhanced with a database lookup
-     */
-    private String getStockName(String stockCode) {
-        // Simple mapping for common stocks
-        switch (stockCode) {
-            case "2330": return "台積電";
-            case "2317": return "鴻海";
-            case "2454": return "聯發科";
-            case "2382": return "廣達";
-            case "3008": return "大立光";
-            case "2303": return "聯電";
-            case "1301": return "台塑";
-            case "2881": return "富邦金";
-            case "2002": return "中鋼";
-            case "1216": return "統一";
-            default: return "股票代碼 " + stockCode;
-        }
     }
 }
