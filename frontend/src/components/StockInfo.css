@@ -1,0 +1,160 @@
+.stock-info {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+}
+
+.stock-info.error {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+.error-message {
+  text-align: center;
+  color: #dc3545;
+}
+
+.error-message h3 {
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.stock-header {
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.stock-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.last-update {
+  font-size: 14px;
+  color: #666;
+}
+
+.price-section {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.current-price {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #333;
+}
+
+.price-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.price-change.positive {
+  color: #dc3545; /* 台股紅色代表上漲 */
+}
+
+.price-change.negative {
+  color: #28a745; /* 台股綠色代表下跌 */
+}
+
+.change-icon {
+  font-size: 16px;
+}
+
+.stock-details {
+  margin-bottom: 20px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.detail-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 16px;
+  color: #333;
+  font-weight: bold;
+}
+
+.stock-note {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 12px;
+  text-align: center;
+}
+
+.stock-note p {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .stock-info {
+    margin: 15px;
+    padding: 16px;
+  }
+  
+  .stock-title {
+    font-size: 20px;
+  }
+  
+  .price-value {
+    font-size: 28px;
+  }
+  
+  .price-change {
+    font-size: 16px;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .detail-item {
+    padding: 10px;
+  }
+  
+  .detail-label {
+    font-size: 13px;
+  }
+  
+  .detail-value {
+    font-size: 15px;
+  }
+}
