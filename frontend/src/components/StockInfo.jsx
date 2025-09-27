@@ -67,7 +67,7 @@ const StockInfo = ({ stockData, error }) => {
       </div>
 
       <div className="stock-note">
-        <p>* 以上資料為模擬數據，僅供參考</p>
+        <p>* 資料來源：台灣證券交易所，僅供參考，投資有風險</p>
       </div>
     </div>
   );

@@ -1,13 +1,11 @@
-import { mockStocks } from '../data/mockStocks.js';
-
 /**
  * 股票 API 服務模組
- * 目前使用模擬資料，未來可替換成實際的 Spring Boot API 串接
+ * 整合 Spring Boot 後端 API 串接
  */
 class StockService {
   constructor() {
-    // API 基礎路徑，未來替換成實際的後端 API 網址
-    this.baseURL = 'http://localhost:8080/api';
+    // API 基礎路徑，指向本地後端 Spring Boot API
+    this.baseURL = 'http://localhost:8080/api/twse';
   }
 
   /**
@@ -16,73 +14,122 @@ class StockService {
    * @returns {Promise<Object>} 股票資訊物件
    */
   async getStockInfo(stockCode) {
-    // 模擬 API 請求延遲
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const stock = mockStocks[stockCode];
-        if (stock) {
-          resolve({
-            success: true,
-            data: stock,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          reject({
+    try {
+      const response = await fetch(`${this.baseURL}/stocks/${stockCode}`);
+      
+      if (!response.ok) {
+        // 處理 HTTP 錯誤狀態
+        if (response.status === 404) {
+          throw {
             success: false,
             message: `找不到股票代碼 ${stockCode} 的資訊`,
             code: 'STOCK_NOT_FOUND'
-          });
+          };
+        } else if (response.status === 400) {
+          throw {
+            success: false,
+            message: `股票代碼格式無效: ${stockCode}`,
+            code: 'INVALID_STOCK_CODE'
+          };
+        } else if (response.status >= 500) {
+          throw {
+            success: false,
+            message: '伺服器暫時無法處理請求，請稍後再試',
+            code: 'SERVER_ERROR'
+          };
+        } else {
+          throw {
+            success: false,
+            message: `API 請求失敗 (${response.status})`,
+            code: 'API_ERROR'
+          };
         }
-      }, 800); // 模擬網路延遲
-    });
+      }
+
+      const backendData = await response.json();
+      
+      // 將後端資料格式轉換為前端期望的格式
+      const mappedData = this.mapBackendDataToFrontendFormat(backendData);
+      
+      return {
+        success: true,
+        data: mappedData,
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      // 如果是網路錯誤或其他非預期錯誤
+      if (error.success === false) {
+        // 已經是我們格式化的錯誤，直接拋出
+        throw error;
+      } else {
+        // 網路或其他錯誤
+        throw {
+          success: false,
+          message: `無法連接到伺服器，請檢查網路連線或確認後端服務是否啟動`,
+          code: 'NETWORK_ERROR'
+        };
+      }
+    }
   }
 
   /**
-   * 批量查詢多支股票資訊
+   * 將後端 API 資料格式轉換為前端期望的格式
+   * @param {Object} backendData - 後端 API 回傳的資料
+   * @returns {Object} 轉換後的前端格式資料
+   */
+  mapBackendDataToFrontendFormat(backendData) {
+    // 計算漲跌幅百分比
+    let changePercent = 0;
+    if (backendData.change && backendData.closingPrice) {
+      const change = parseFloat(backendData.change);
+      const closingPrice = parseFloat(backendData.closingPrice);
+      const previousPrice = closingPrice - change;
+      if (previousPrice > 0) {
+        changePercent = (change / previousPrice) * 100;
+      }
+    }
+
+    return {
+      code: backendData.stockCode,
+      name: backendData.stockName,
+      price: parseFloat(backendData.closingPrice) || 0,
+      change: parseFloat(backendData.change) || 0,
+      changePercent: changePercent,
+      volume: backendData.tradeVolume || 0,
+      high: parseFloat(backendData.highestPrice) || 0,
+      low: parseFloat(backendData.lowestPrice) || 0,
+      open: parseFloat(backendData.openingPrice) || 0,
+      date: backendData.date
+    };
+  }
+
+  /**
+   * 批量查詢多支股票資訊（使用後端 API）
    * @param {string[]} stockCodes - 股票代碼陣列
    * @returns {Promise<Object[]>} 股票資訊陣列
    */
   async getMultipleStocks(stockCodes) {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const results = stockCodes
-          .map(code => mockStocks[code])
-          .filter(stock => stock !== undefined);
-        
-        resolve({
-          success: true,
-          data: results,
-          timestamp: new Date().toISOString()
-        });
-      }, 1000);
-    });
-  }
-
-  /**
-   * 未來實際 API 串接的方法範例
-   * TODO: 替換成實際的 HTTP 請求
-   */
-  async fetchFromRealAPI(/* stockCode */) {
-    /*
     try {
-      const response = await fetch(`${this.baseURL}/stocks/${stockCode}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
+      const promises = stockCodes.map(code => this.getStockInfo(code).catch(error => ({ error, code })));
+      const results = await Promise.all(promises);
+      
+      const successResults = results
+        .filter(result => !result.error)
+        .map(result => result.data);
+      
       return {
         success: true,
-        data: data,
+        data: successResults,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
       throw {
         success: false,
-        message: `API 請求失敗: ${error.message}`,
-        code: 'API_ERROR'
+        message: '批量查詢股票資訊失敗',
+        code: 'BATCH_QUERY_ERROR'
       };
     }
-    */
   }
 }
 

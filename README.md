@@ -1,9 +1,86 @@
-# Taiwan Stock Exchange (TWSE) RESTful API
-
-A comprehensive Spring Boot RESTful API for querying Taiwan Stock Exchange (TWSE) current day stock data using the official TWSE OpenAPI.
 # 台灣股票價格查詢系統 (Taiwan Stock Query System)
 
-這是一個使用 React + Spring Boot 構建的台灣股票價格查詢系統。前端使用 React 18 + Vite，後端使用 Spring Boot 3。
+這是一個使用 React + Spring Boot 構建的台灣股票價格查詢系統。前端使用 React 19 + Vite，後端使用 Spring Boot 3，**已完成前後端整合**。
+
+## 🎯 專案特色
+
+- ✅ **前後端完全整合**: React 前端已串接 Spring Boot 後端 API
+- ✅ **即時股票資料**: 後端串接台灣證券交易所公開 API
+- ✅ **完善錯誤處理**: 處理各種 API 錯誤情況並顯示友善訊息
+- ✅ **CORS 支援**: 已配置跨域請求支援
+- ✅ **響應式設計**: 支援手機、平板、桌面裝置
+
+## 🚀 快速啟動
+
+### 1. 啟動後端服務
+
+```bash
+# 在專案根目錄執行
+mvn spring-boot:run
+```
+
+後端將在 http://localhost:8080 啟動
+
+### 2. 啟動前端應用
+
+```bash
+# 切換到 frontend 目錄
+cd frontend
+
+# 安裝依賴 (首次執行)
+npm install
+
+# 啟動開發伺服器
+npm run dev
+```
+
+前端將在 http://localhost:5173 啟動
+
+### 3. 測試整合功能
+
+1. 開啟瀏覽器訪問 http://localhost:5173
+2. 點選熱門股票按鈕（如：2330 台積電）
+3. 或手動輸入股票代碼查詢
+4. 系統會實際呼叫後端 API 並顯示結果
+
+## 📡 API 端點
+
+後端提供以下 RESTful API 端點：
+
+- `GET /api/twse/health` - 服務健康檢查
+- `GET /api/twse/stocks` - 取得所有股票當日資料  
+- `GET /api/twse/stocks/{stockCode}` - 取得指定股票當日資料
+
+## 🔧 技術架構
+
+### 前端 (React)
+- React 19 + Vite
+- 實際 HTTP API 呼叫 (已移除 mock 資料)
+- 完整錯誤處理與使用者體驗
+
+### 後端 (Spring Boot)  
+- Spring Boot 3.4.1 + Java 17
+- 串接台灣證券交易所公開 API
+- CORS 跨域支援配置
+- 完善的錯誤回應機制
+
+## 🧪 測試指令
+
+```bash
+# 測試後端健康狀態
+curl http://localhost:8080/api/twse/health
+
+# 測試股票查詢 API  
+curl http://localhost:8080/api/twse/stocks/2330
+
+# 前端程式碼檢查
+cd frontend && npm run lint
+
+# 前端建構測試
+cd frontend && npm run build
+```
+
+---
 
 ## 專案結構
 
@@ -37,11 +114,12 @@ ai_programming/
 - ✅ 載入動畫效果
 - ✅ 熱門股票快速查詢按鈕
 - ✅ 響應式設計 (支援手機、平板、桌面)
-- ✅ 模擬資料系統
-- ✅ API 服務模組架構
+- ✅ **與 Spring Boot 後端 API 完整整合**
+- ✅ **實際台股資料串接 (已移除 mock 資料)**
+- ✅ **完善錯誤處理與友善提示**
+- ✅ **CORS 跨域請求支援**
 
 ### 🔮 未來規劃
-- [ ] 與 Spring Boot 後端 API 串接
 - [ ] 即時股價更新
 - [ ] 股票圖表顯示
 - [ ] 收藏股票功能
